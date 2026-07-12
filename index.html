@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NZ Rental Property: Keep vs Sell Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* chart chrome & ink (dataviz reference palette) */
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --hairline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --ring: rgba(11,11,11,0.10);
+  /* series (categorical slots 1 & 2, diverging red pole) */
+  --keep: #2a78d6;
+  --keep-deep: #1c5cab;
+  --sell: #1baf7a;
+  --loss: #e34948;
+  /* text tokens for signed values */
+  --pos-text: #006300;
+  --neg-text: #d03b3b;
+  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--page);
+  color: var(--ink);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* paper grain */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.035 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.container { max-width: 1320px; margin: 0 auto; padding: 40px 24px 32px; }
+
+/* ---------- masthead ---------- */
+header { margin-bottom: 36px; border-bottom: 1px solid var(--ink); padding-bottom: 24px; }
+.masthead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.masthead > div { min-width: 0; }
+.overline {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+header h1 {
+  font-family: var(--serif);
+  font-size: clamp(1.9rem, 4vw, 2.7rem);
+  font-weight: 550;
+  font-variation-settings: 'opsz' 60;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  max-width: 22ch;
+}
+header h1 em {
+  font-style: italic;
+  font-weight: 480;
+  color: var(--keep-deep);
+}
+.subtitle {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  margin-top: 10px;
+  max-width: 52ch;
+}
+.share-btn {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  padding: 9px 16px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.share-btn:hover { background: var(--ink); color: var(--surface); }
+.share-btn:focus-visible { outline: 2px solid var(--keep); outline-offset: 2px; }
+
+.mini-btn {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 5px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.mini-btn:hover { border-color: var(--ink); color: var(--ink); }
+.mini-btn:focus-visible { outline: 2px solid var(--keep); outline-offset: 2px; }
+
+/* ---------- layout ---------- */
+.main-layout {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .main-layout { grid-template-columns: 1fr; }
+}
+
+/* ---------- input panel ---------- */
+.input-panel {
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(11,11,11,0.04);
+  padding: 24px 22px;
+  position: sticky;
+  top: 20px;
+}
+@media (max-width: 900px) {
+  .input-panel { position: static; }
+}
+.input-panel h2 {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  font-weight: 550;
+  font-style: italic;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.section { margin-bottom: 22px; }
+.section:last-child { margin-bottom: 0; }
+.section-title {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.form-row.full { grid-template-columns: 1fr; }
+
+.form-group { display: flex; flex-direction: column; min-width: 0; }
+.form-group label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+}
+.form-group input,
+.form-group select,
+.scenario-form input {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  background: var(--page);
+  color: var(--ink);
+  width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.scenario-form input:focus {
+  outline: none;
+  border-color: var(--keep);
+  box-shadow: 0 0 0 3px rgba(42,120,214,0.14);
+}
+.form-group input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+.checkbox-row input[type="checkbox"] {
+  width: 15px; height: 15px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--ink);
+}
+.checkbox-row label { line-height: 1.4; }
+
+.preset-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.preset-btn {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  padding: 5px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.preset-btn:hover { border-color: var(--ink); color: var(--ink); }
+.preset-btn.active {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: var(--ink);
+}
+.preset-btn:focus-visible { outline: 2px solid var(--keep); outline-offset: 2px; }
+
+/* ---------- results ---------- */
+.results-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+  gap: 12px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(11,11,11,0.04);
+  padding: 16px 18px;
+  animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
+}
+.card:nth-child(1) { animation-delay: 0.04s; }
+.card:nth-child(2) { animation-delay: 0.08s; }
+.card:nth-child(3) { animation-delay: 0.12s; }
+.card:nth-child(4) { animation-delay: 0.16s; }
+.card:nth-child(5) { animation-delay: 0.20s; }
+
+.card-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.card-value {
+  font-size: 1.55rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-top: 4px;
+}
+.card-sub { font-size: 0.74rem; color: var(--ink-2); margin-top: 2px; }
+.card-value.green { color: var(--pos-text); }
+.card-value.red { color: var(--neg-text); }
+
+/* verdict card — the full-width ink stamp */
+.card.verdict {
+  grid-column: 1 / -1;
+  background: var(--ink);
+  border-color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 16px 22px;
+}
+.card.verdict .card-label { color: var(--baseline); }
+.card.verdict .card-value {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 550;
+  font-size: 2.1rem;
+  line-height: 1;
+  margin: 0;
+  color: var(--surface);
+}
+.card.verdict .card-sub { margin-left: auto; font-size: 0.8rem; align-self: center; text-align: right; }
+.card.verdict .card-value.green { color: #0ca30c; }
+.card.verdict .card-value.red { color: #e66767; }
+.card.verdict .card-sub { color: var(--baseline); }
+
+/* ---------- scenarios ---------- */
+.scen-card { animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) 0.22s backwards; }
+.scenario-form {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+.scenario-form input { flex: 1; }
+.scen-hint { font-size: 0.78rem; color: var(--muted); padding: 8px 0 2px; }
+.scen-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 9px 0;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.scen-row:first-of-type { margin-top: 10px; }
+.scen-name {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scen-win { font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.64rem; }
+.scen-acts { display: flex; gap: 6px; }
+.scen-live { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+
+/* ---------- table ---------- */
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(11,11,11,0.04);
+  animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) 0.24s backwards;
+  overflow: hidden;
+}
+.table-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+.table-bar span {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.table-wrap {
+  overflow: auto;
+  max-height: 460px;
+}
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.table-wrap thead { position: sticky; top: 0; z-index: 1; }
+.table-wrap th {
+  background: var(--page);
+  font-family: var(--mono);
+  padding: 10px 9px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--ink);
+}
+.table-wrap th:first-child { text-align: center; }
+.table-wrap td {
+  padding: 7px 9px;
+  text-align: right;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-2);
+}
+.table-wrap td:first-child { text-align: center; font-weight: 600; color: var(--muted); }
+.table-wrap tbody tr:hover td { background: #f4f4f1; }
+.table-wrap tr:last-child td { border-bottom: none; }
+.table-wrap tr.gap td { border-bottom: 1px solid var(--baseline); }
+.table-wrap tr.sale-year td { background: #f7f1e3; }
+.num-pos { color: var(--pos-text); }
+.num-neg { color: var(--neg-text); }
+
+/* ---------- charts & sensitivity ---------- */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 750px) {
+  .charts-row { grid-template-columns: 1fr; }
+}
+.chart-box {
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(11,11,11,0.04);
+  padding: 18px;
+  animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) 0.3s backwards;
+}
+.chart-box h3 {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.chart-box canvas { max-height: 320px; }
+
+.sens-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.sens-table th {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 6px 4px;
+}
+.sens-table th.corner { text-align: left; letter-spacing: 0.02em; }
+.sens-table td {
+  padding: 8px 4px;
+  border: 2px solid var(--surface);
+  border-radius: 4px;
+}
+.sens-table td.keep { background: rgba(42,120,214,0.10); color: var(--keep-deep); }
+.sens-table td.sell { background: rgba(27,175,122,0.14); color: #0c6b49; }
+.sens-table td.current { outline: 2px solid var(--ink); outline-offset: -2px; font-weight: 600; }
+.sens-note { font-size: 0.74rem; color: var(--muted); margin-top: 10px; }
+
+.break-even { font-weight: 600; }
+
+.site-footer {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-align: center;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+@media print {
+  body::after { display: none; }
+  .main-layout { grid-template-columns: 1fr; }
+  .input-panel { position: static; }
+  .share-btn, .mini-btn, .scenario-form { display: none; }
+  .table-wrap { max-height: none; overflow: visible; }
+  .card, .chart-box, .table-card, .input-panel { break-inside: avoid; box-shadow: none; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div class="masthead">
+    <div>
+      <p class="overline">Property Decision Ledger &middot; Aotearoa NZ</p>
+      <h1>Keep the rental, <em>or sell &amp; invest?</em></h1>
+      <p class="subtitle">A year-by-year comparison of holding your rental property against selling today and investing the equity elsewhere.</p>
+    </div>
+    <button id="shareBtn" class="share-btn" type="button">Copy share link</button>
+  </div>
+</header>
+
+<div class="main-layout">
+
+<div class="input-panel">
+  <h2>Property &amp; assumptions</h2>
+
+  <div class="section">
+    <div class="section-title">Property</div>
+    <div class="form-row">
+      <div class="form-group"><label for="purchase">Purchase price ($)</label><input id="purchase" type="number" value="600000" step="1000"></div>
+      <div class="form-group"><label for="value">Current market value ($)</label><input id="value" type="number" value="750000" step="1000"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="mortgage">Mortgage balance ($)</label><input id="mortgage" type="number" value="400000" step="1000"></div>
+      <div class="form-group"><label for="interest">Interest rate (% p.a.)</label><input id="interest" type="number" value="6.5" step="0.01" min="0" max="20"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="term">Remaining term (years)</label><input id="term" type="number" value="25" step="1" min="1" max="30"></div>
+      <div class="form-group"><label for="rent">Weekly rent ($)</label><input id="rent" type="number" value="550" step="5"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="growth">Capital growth (% p.a.)</label><input id="growth" type="number" value="4" step="0.1"></div>
+      <div class="form-group"><label for="rentgrowth">Rent growth (% p.a.)</label><input id="rentgrowth" type="number" value="3" step="0.1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="costinfl">Cost inflation (% p.a.)</label><input id="costinfl" type="number" value="2" step="0.1"></div>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="interestonly">
+      <label for="interestonly">Interest-only mortgage (no principal repayment)</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Operating Costs (annual)</div>
+    <div class="form-row">
+      <div class="form-group"><label for="rates">Rates ($)</label><input id="rates" type="number" value="2500" step="100"></div>
+      <div class="form-group"><label for="insurance">Insurance ($)</label><input id="insurance" type="number" value="1500" step="100"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="maintenance">Maintenance ($)</label><input id="maintenance" type="number" value="2000" step="100"></div>
+      <div class="form-group"><label for="bodycorp">Body corp ($)</label><input id="bodycorp" type="number" value="0" step="100"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="mgmt">Property mgmt (%)</label><input id="mgmt" type="number" value="8" step="0.5" min="0" max="15"></div>
+      <div class="form-group"><label for="vacancy">Vacancy (weeks/yr)</label><input id="vacancy" type="number" value="2" step="1" min="0" max="10"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Tax Settings (NZ)</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="taxrate">Marginal tax rate</label>
+        <select id="taxrate">
+          <option value="10.5">10.5%</option>
+          <option value="17.5">17.5%</option>
+          <option value="30">30%</option>
+          <option value="33" selected>33%</option>
+          <option value="39">39%</option>
+        </select>
+      </div>
+      <div class="form-group"><label for="deductible">Interest deductible (%)</label><input id="deductible" type="number" value="100" step="1" min="0" max="100"></div>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="brightline">
+      <label for="brightline">Bright-line test applies to the sale (2-year test for property bought after 1 Jul 2024 — leave unchecked if the window will have passed by the sale year)</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Selling Costs</div>
+    <div class="form-row">
+      <div class="form-group"><label for="agent">Agent commission (%)</label><input id="agent" type="number" value="3" step="0.1" min="0" max="6"></div>
+      <div class="form-group"><label for="marketing">Marketing ($)</label><input id="marketing" type="number" value="1500" step="100"></div>
+    </div>
+    <div class="form-row full"><div class="form-group"><label for="legal">Legal fees ($)</label><input id="legal" type="number" value="1500" step="100"></div></div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="liqbasis">
+      <label for="liqbasis">Liquidation basis: deduct future selling costs from Keep net worth too</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Alternative Investment</div>
+    <div class="preset-btns" id="presets">
+      <button class="preset-btn" type="button" data-rate="5" data-tax="28" data-label="Term Deposit">Term Deposit ~5%</button>
+      <button class="preset-btn active" type="button" data-rate="8" data-tax="28" data-label="NZX50">NZX50 ~8%</button>
+      <button class="preset-btn" type="button" data-rate="10" data-tax="28" data-label="S&P500">S&P500 ~10%</button>
+      <button class="preset-btn" type="button" data-rate="7" data-tax="28" data-label="Managed Fund">Managed Fund ~7%</button>
+      <button class="preset-btn custom" type="button" data-rate="" data-tax="" data-label="Custom">Custom</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="altReturn">Expected return (% p.a.)</label><input id="altReturn" type="number" value="8" step="0.1"></div>
+      <div class="form-group"><label for="altTax">Tax on returns (%)</label><input id="altTax" type="number" value="28" step="0.5" min="0" max="39"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Projection</div>
+    <div class="form-row">
+      <div class="form-group"><label for="years">Years to project</label><input id="years" type="number" value="15" step="1" min="1" max="40"></div>
+      <div class="form-group"><label for="sellyear">Sell in year (0 = now)</label><input id="sellyear" type="number" value="0" step="1" min="0" max="40"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="inflation">Inflation (% p.a.)</label><input id="inflation" type="number" value="2" step="0.1" min="0" max="10"></div>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="realmode">
+      <label for="realmode">Show results in today's dollars (deflate by inflation)</label>
+    </div>
+  </div>
+</div>
+
+<div class="results-panel">
+
+  <div class="summary-cards" id="summaries">
+    <div class="card"><div class="card-label">Net Equity Released</div><div class="card-value" id="sum-equity">—</div><div class="card-sub" id="sum-equity-sub">After selling costs &amp; tax</div></div>
+    <div class="card"><div class="card-label">Year 1 Keep Cashflow</div><div class="card-value" id="sum-cf">—</div><div class="card-sub" id="sum-cf-sub">Net cash in/out first year</div></div>
+    <div class="card"><div class="card-label">Year N Net Worth (Keep)</div><div class="card-value" id="sum-keep">—</div><div class="card-sub" id="sum-keep-sub"></div></div>
+    <div class="card"><div class="card-label">Year N Net Worth (Sell)</div><div class="card-value" id="sum-sell">—</div><div class="card-sub" id="sum-sell-sub"></div></div>
+    <div class="card verdict"><div class="card-label">The Verdict</div><div class="card-value" id="sum-winner">—</div><div class="card-sub break-even" id="sum-be"></div></div>
+  </div>
+
+  <div class="card scen-card">
+    <div class="card-label">Scenarios</div>
+    <div class="scenario-form">
+      <input id="scenName" type="text" placeholder="Name this set-up (e.g. Interest-only, 5% growth)">
+      <button id="scenSave" class="mini-btn" type="button">Save current</button>
+    </div>
+    <div id="scenList"></div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-bar">
+      <span id="tableTitle">Year-by-year projection</span>
+      <button id="csvBtn" class="mini-btn" type="button">Export CSV</button>
+    </div>
+    <div class="table-wrap" id="tableWrap">
+      <table><thead><tr>
+        <th>Year</th>
+        <th>Property Value</th>
+        <th>Mortgage</th>
+        <th>Equity</th>
+        <th>Net Cashflow</th>
+        <th title="Net rental cashflow accumulated and invested (or drawn down) at the after-tax alternative return">Cumulative Cashflow</th>
+        <th>Keep Net Worth</th>
+        <th>Sell Net Worth</th>
+        <th>Difference</th>
+      </tr></thead>
+      <tbody id="tableBody"></tbody></table>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-box"><h3 id="nwTitle">Net Worth Over Time</h3><canvas id="chartNW"></canvas></div>
+    <div class="chart-box"><h3 id="cfTitle">Annual Cashflow — Keep vs Opportunity Gain</h3><canvas id="chartCF"></canvas></div>
+  </div>
+
+  <div class="chart-box">
+    <h3 id="sensTitle">Sensitivity — Who Wins?</h3>
+    <div id="sensGrid"></div>
+    <p class="sens-note">Final-year margin (Keep &minus; Sell) across capital growth (rows) and alternative return (columns). Blue cells favour Keep, green favour Sell; the outlined cell is your current assumptions.</p>
+  </div>
+
+</div></div>
+
+<footer class="site-footer">Projections from your assumptions only — not financial advice. Talk to a professional before acting.</footer>
+
+</div>
+
+<script>
+function $(id) { return document.getElementById(id); }
+
+// Clamps values to an input's min/max attributes — the attributes alone only
+// constrain the spinner buttons, not keyboard entry or shared URLs.
+function clampTo(id, n) {
+  const el = $(id);
+  if (el && el.min !== undefined && el.min !== '' && n < parseFloat(el.min)) n = parseFloat(el.min);
+  if (el && el.max !== undefined && el.max !== '' && n > parseFloat(el.max)) n = parseFloat(el.max);
+  return n;
+}
+
+function fmt(n) {
+  const sign = n < 0 ? '-' : '';
+  if (Math.abs(n) >= 1e6) return sign + '$' + (Math.abs(n) / 1e6).toFixed(2) + 'M';
+  return sign + '$' + Math.abs(Math.round(n)).toLocaleString('en-NZ');
+}
+function fmtShort(n) {
+  const sign = n < 0 ? '-' : '+';
+  const a = Math.abs(n);
+  if (a >= 1e6) return sign + '$' + (a / 1e6).toFixed(1) + 'M';
+  if (a >= 1e3) return sign + '$' + Math.round(a / 1e3) + 'k';
+  return sign + '$' + Math.round(a);
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const NUM_IDS = ['purchase','value','mortgage','interest','term','rent','growth','rentgrowth','costinfl',
+  'rates','insurance','maintenance','bodycorp','mgmt','vacancy','taxrate','deductible',
+  'agent','marketing','legal','altReturn','altTax','years','sellyear','inflation'];
+const CHECK_IDS = ['brightline','interestonly','liqbasis','realmode'];
+const STORAGE_KEY = 'dscalc-inputs';
+const SCEN_KEY = 'dscalc-scenarios';
+
+function collectState() {
+  const s = {};
+  NUM_IDS.forEach(id => { s[id] = $(id).value; });
+  CHECK_IDS.forEach(id => { s[id] = $(id).checked ? '1' : '0'; });
+  return s;
+}
+function applyState(s) {
+  NUM_IDS.forEach(id => { if (s[id] !== undefined && s[id] !== '') $(id).value = s[id]; });
+  CHECK_IDS.forEach(id => { if (s[id] !== undefined) $(id).checked = s[id] === '1'; });
+}
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectState())); } catch (e) {}
+}
+function loadState() {
+  let s = null;
+  const params = new URLSearchParams(location.search);
+  if ([...params.keys()].length > 0) {
+    s = {};
+    params.forEach((v, k) => { s[k] = v; });
+  } else {
+    try { s = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) {}
+  }
+  if (s) applyState(s);
+}
+
+// Turn a state map (raw input strings) into numeric model parameters.
+function parseParams(s) {
+  function num(id) {
+    let n = parseFloat(s[id]);
+    if (isNaN(n)) n = 0;
+    return clampTo(id, n);
+  }
+  function chk(id) { return s[id] === '1'; }
+  return {
+    purchase: num('purchase'),
+    curValue: num('value'),
+    mortgage: num('mortgage'),
+    interestRate: num('interest') / 100,
+    termMonths: num('term') * 12,
+    weeklyRent: num('rent'),
+    growthRate: num('growth') / 100,
+    rentGrowth: num('rentgrowth') / 100,
+    costInfl: num('costinfl') / 100,
+    fixedCostsBase: num('rates') + num('insurance') + num('maintenance') + num('bodycorp'),
+    mgmtPct: num('mgmt') / 100,
+    vacancyWeeks: num('vacancy'),
+    taxRate: num('taxrate') / 100,
+    deductiblePct: num('deductible') / 100,
+    brightline: chk('brightline'),
+    interestOnly: chk('interestonly'),
+    liqBasis: chk('liqbasis'),
+    agentPct: num('agent') / 100,
+    marketing: num('marketing'),
+    legal: num('legal'),
+    altReturn: num('altReturn') / 100,
+    altTax: num('altTax') / 100,
+    projYears: Math.max(1, Math.round(num('years')) || 15),
+    sellYearRaw: Math.max(0, Math.round(num('sellyear'))),
+    inflation: num('inflation') / 100,
+    realMode: chk('realmode')
+  };
+}
+
+// Pure projection model: params in, results out. No DOM access, so it can be
+// re-run for saved scenarios, the sensitivity grid, and the break-even solver.
+function compute(p) {
+  const projYears = p.projYears;
+  const sellYear = Math.min(p.sellYearRaw, projYears);
+  const altAfterTax = p.altReturn * (1 - p.altTax);
+  const monthlyRate = p.interestRate / 12;
+
+  let monthlyPayment = 0;
+  if (p.interestOnly) {
+    monthlyPayment = p.mortgage * monthlyRate;
+  } else if (monthlyRate > 0 && p.termMonths > 0) {
+    monthlyPayment = p.mortgage * monthlyRate * Math.pow(1 + monthlyRate, p.termMonths) /
+      (Math.pow(1 + monthlyRate, p.termMonths) - 1);
+  } else if (p.termMonths > 0) {
+    monthlyPayment = p.mortgage / p.termMonths;
+  }
+
+  function sellingCostsAt(value) { return value * p.agentPct + p.marketing + p.legal; }
+  // Selling costs are deductible against the bright-line gain.
+  function saleProceedsCalc(value, mortBal) {
+    const cost = sellingCostsAt(value);
+    let proceeds = value - mortBal - cost;
+    if (p.brightline) proceeds -= Math.max(0, value - p.purchase - cost) * p.taxRate;
+    return proceeds;
+  }
+
+  // ---- Keep scenario, year by year ----
+  let propValue = p.curValue;
+  let mortBal = p.mortgage;
+  let saved = 0;
+  let lossCarry = 0;
+
+  const years = [], keepNWs = [], cashflows = [], propVals = [], mortBals = [], savedVals = [];
+
+  for (let y = 1; y <= projYears; y++) {
+    const grossRent = p.weeklyRent * (52 - p.vacancyWeeks) * Math.pow(1 + p.rentGrowth, y - 1);
+    const opEx = p.fixedCostsBase * Math.pow(1 + p.costInfl, y - 1) + grossRent * p.mgmtPct;
+
+    let totalInterest = 0;
+    let totalPrincipal = 0;
+    let bal = mortBal;
+    const monthsThisYear = p.interestOnly ? 12 : Math.min(12, Math.max(0, p.termMonths - (y - 1) * 12));
+
+    for (let m = 0; m < monthsThisYear; m++) {
+      const int = bal * monthlyRate;
+      const prin = p.interestOnly ? 0 : Math.min(Math.max(0, monthlyPayment - int), bal);
+      totalInterest += int;
+      totalPrincipal += prin;
+      bal -= prin;
+      if (!p.interestOnly && bal <= 0.01) { bal = 0; break; }
+    }
+
+    const deductibleInt = totalInterest * p.deductiblePct;
+    let taxableRental = grossRent - opEx - deductibleInt;
+
+    if (lossCarry > 0) {
+      const offset = Math.min(lossCarry, Math.max(0, taxableRental));
+      taxableRental -= offset;
+      lossCarry -= offset;
+    }
+    if (taxableRental < 0) {
+      lossCarry += Math.abs(taxableRental);
+      taxableRental = 0;
+    }
+
+    const tax = taxableRental * p.taxRate;
+    const netCashflow = grossRent - opEx - totalInterest - totalPrincipal - tax;
+
+    mortBal = bal;
+    propValue *= (1 + p.growthRate);
+    saved = saved * (1 + altAfterTax) + netCashflow;
+
+    const keepNW = propValue - mortBal + saved - (p.liqBasis ? sellingCostsAt(propValue) : 0);
+
+    years.push(y);
+    keepNWs.push(keepNW);
+    cashflows.push(netCashflow);
+    propVals.push(propValue);
+    mortBals.push(mortBal);
+    savedVals.push(saved);
+  }
+
+  // ---- Sell scenario ----
+  // sellYear = 0: sell today. sellYear = k: identical to Keep until end of
+  // year k, then sale proceeds + accumulated cashflow compound at the
+  // after-tax alternative return.
+  const sellNWs = [];
+  let saleProceeds;
+  if (sellYear === 0) {
+    saleProceeds = saleProceedsCalc(p.curValue, p.mortgage);
+    for (let y = 1; y <= projYears; y++) {
+      sellNWs.push(saleProceeds * Math.pow(1 + altAfterTax, y));
+    }
+  } else {
+    const i = sellYear - 1;
+    saleProceeds = saleProceedsCalc(propVals[i], mortBals[i]);
+    const potAtSale = saleProceeds + savedVals[i];
+    for (let y = 1; y <= projYears; y++) {
+      if (y < sellYear) sellNWs.push(keepNWs[y - 1]);
+      else sellNWs.push(potAtSale * Math.pow(1 + altAfterTax, y - sellYear));
+    }
+  }
+
+  const finalKeep = keepNWs[projYears - 1];
+  const finalSell = sellNWs[projYears - 1];
+  const winner = finalKeep >= finalSell ? 'Keep' : 'Sell';
+
+  // Last crossover: the year from which the final winner stays ahead.
+  let crossover = -1;
+  for (let i = projYears - 1; i >= 1; i--) {
+    const lead = keepNWs[i] >= sellNWs[i];
+    const prevLead = keepNWs[i - 1] >= sellNWs[i - 1];
+    if (lead !== prevLead) { crossover = years[i]; break; }
+  }
+
+  const startSellNW = sellYear === 0
+    ? saleProceeds
+    : p.curValue - p.mortgage - (p.liqBasis ? sellingCostsAt(p.curValue) : 0);
+
+  return {
+    years, keepNWs, sellNWs, cashflows, propVals, mortBals, savedVals,
+    saleProceeds, sellYear, projYears, altAfterTax,
+    finalKeep, finalSell, winner, crossover, startSellNW
+  };
+}
+
+// Bisect for the capital growth rate where Keep and Sell finish level.
+function breakevenText(p) {
+  const f = g => {
+    const r = compute(Object.assign({}, p, { growthRate: g }));
+    return r.finalKeep - r.finalSell;
+  };
+  const lo = -0.05, hi = 0.15;
+  let fa = f(lo);
+  const fb = f(hi);
+  if (fa > 0 && fb > 0) return 'Keep wins at any growth from -5% to 15%';
+  if (fa <= 0 && fb <= 0) return 'Sell wins at any growth from -5% to 15%';
+  let a = lo, b = hi;
+  for (let i = 0; i < 48; i++) {
+    const m = (a + b) / 2, fm = f(m);
+    if ((fm < 0) === (fa < 0)) { a = m; fa = fm; } else { b = m; }
+  }
+  const g = ((a + b) / 2 * 100).toFixed(1);
+  return fb > 0
+    ? 'Keep wins if capital growth ≥ ' + g + '%'
+    : 'Keep wins if capital growth ≤ ' + g + '%';
+}
+
+let LAST = null;
+
+function recalc() {
+  const state = collectState();
+  const p = parseParams(state);
+  const r = compute(p);
+  LAST = { p, r };
+
+  // Deflator: divide year-y values by (1+inflation)^y when showing today's dollars.
+  const defl = y => p.realMode ? Math.pow(1 + p.inflation, y) : 1;
+  const realTag = p.realMode ? ' · today’s $' : '';
+
+  const dispKeep = r.keepNWs.map((v, i) => v / defl(i + 1));
+  const dispSell = r.sellNWs.map((v, i) => v / defl(i + 1));
+  const finalKeep = dispKeep[r.projYears - 1];
+  const finalSell = dispSell[r.projYears - 1];
+  const yr1CF = r.cashflows[0] / defl(1);
+
+  $('sum-equity').textContent = fmt(r.saleProceeds / defl(r.sellYear));
+  $('sum-equity').className = 'card-value';
+  $('sum-equity-sub').textContent = (r.sellYear > 0
+    ? 'After costs & tax, sale at end of Year ' + r.sellYear
+    : 'After selling costs & tax') + realTag;
+
+  const grossYield = p.curValue > 0 ? (p.weeklyRent * 52 / p.curValue * 100).toFixed(1) + '%' : '—';
+  $('sum-cf').textContent = fmt(yr1CF);
+  $('sum-cf').className = 'card-value ' + (yr1CF >= 0 ? 'green' : 'red');
+  $('sum-cf-sub').textContent = 'First year · gross yield ' + grossYield;
+
+  // Annualized return on today's paper equity, from the displayed final values,
+  // so nominal/real stays consistent with the headline numbers.
+  const startEquity = p.curValue - p.mortgage;
+  function roe(final) {
+    if (startEquity <= 0 || final <= 0) return '';
+    return ' · ≈' + ((Math.pow(final / startEquity, 1 / r.projYears) - 1) * 100).toFixed(1) + '% p.a. on today’s equity';
+  }
+  $('sum-keep').textContent = fmt(finalKeep);
+  $('sum-keep-sub').textContent = 'Year ' + r.projYears + realTag + roe(finalKeep);
+  $('sum-sell').textContent = fmt(finalSell);
+  $('sum-sell-sub').textContent = 'Year ' + r.projYears + realTag + roe(finalSell);
+
+  $('sum-winner').textContent = r.winner;
+  $('sum-winner').className = 'card-value ' + (r.winner === 'Keep' ? 'green' : 'red');
+  const crossText = r.crossover > 0
+    ? (r.winner + ' ahead from Year ' + r.crossover)
+    : (r.winner + ' leads at all horizons');
+  $('sum-be').textContent = crossText + ' · ' + breakevenText(p);
+
+  let tbody = '';
+  for (let i = 0; i < r.projYears; i++) {
+    const d = defl(i + 1);
+    const diff = dispKeep[i] - dispSell[i];
+    const cf = r.cashflows[i] / d;
+    let rowClass = '';
+    if (r.sellYear > 0 && i === r.sellYear - 1) rowClass = ' class="sale-year"';
+    else if ((i + 1) % 5 === 0 && i < r.projYears - 1) rowClass = ' class="gap"';
+    tbody += '<tr' + rowClass + '>' +
+      '<td>' + r.years[i] + '</td>' +
+      '<td>' + fmt(r.propVals[i] / d) + '</td>' +
+      '<td>' + fmt(r.mortBals[i] / d) + '</td>' +
+      '<td>' + fmt((r.propVals[i] - r.mortBals[i]) / d) + '</td>' +
+      '<td class="' + (cf >= 0 ? 'num-pos' : 'num-neg') + '">' + fmt(cf) + '</td>' +
+      '<td>' + fmt(r.savedVals[i] / d) + '</td>' +
+      '<td>' + fmt(dispKeep[i]) + '</td>' +
+      '<td>' + fmt(dispSell[i]) + '</td>' +
+      '<td class="' + (diff >= 0 ? 'num-pos' : 'num-neg') + '">' + fmt(diff) + '</td>' +
+      '</tr>';
+  }
+  $('tableBody').innerHTML = tbody;
+
+  const suffix = p.realMode ? ' — Today’s $' : '';
+  $('tableTitle').textContent = 'Year-by-year projection' + suffix;
+  $('nwTitle').textContent = 'Net Worth Over Time' + suffix;
+  $('cfTitle').textContent = 'Annual Cashflow — Keep vs Opportunity Gain' + suffix;
+
+  const dispCashflows = r.cashflows.map((v, i) => v / defl(i + 1));
+  const annualOppGain = dispSell.map((v, i) => v - (i === 0 ? r.startSellNW : dispSell[i - 1]));
+  renderCharts(r.years, dispKeep, dispSell, dispCashflows, annualOppGain);
+
+  renderSensitivity(p);
+  renderScenarios();
+  saveState();
+}
+
+// ---- sensitivity grid: capital growth × alternative return ----
+function renderSensitivity(p) {
+  const dN = p.realMode ? Math.pow(1 + p.inflation, p.projYears) : 1;
+  const gBase = p.growthRate * 100;
+  const rBase = p.altReturn * 100;
+  const offs = [-2, -1, 0, 1, 2];
+  let html = '<table class="sens-table"><tr><th class="corner">growth ↓ · return →</th>';
+  offs.forEach(o => { html += '<th>' + (rBase + o).toFixed(1) + '%</th>'; });
+  html += '</tr>';
+  offs.forEach(go => {
+    const g = gBase + go;
+    html += '<tr><th>' + g.toFixed(1) + '%</th>';
+    offs.forEach(ro => {
+      const rr = rBase + ro;
+      const res = compute(Object.assign({}, p, { growthRate: g / 100, altReturn: rr / 100 }));
+      const diff = (res.finalKeep - res.finalSell) / dN;
+      const cls = (diff >= 0 ? 'keep' : 'sell') + (go === 0 && ro === 0 ? ' current' : '');
+      html += '<td class="' + cls + '" title="growth ' + g.toFixed(1) + '%, return ' + rr.toFixed(1) + '%: ' +
+        (diff >= 0 ? 'Keep' : 'Sell') + ' by ' + fmt(Math.abs(diff)) + '">' + fmtShort(diff) + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</table>';
+  $('sensGrid').innerHTML = html;
+}
+
+// ---- saved scenarios ----
+function getScenarios() {
+  try { return JSON.parse(localStorage.getItem(SCEN_KEY)) || []; } catch (e) { return []; }
+}
+function setScenarios(arr) {
+  try { localStorage.setItem(SCEN_KEY, JSON.stringify(arr)); } catch (e) {}
+}
+function scenRow(name, p, r, idx) {
+  const d = p.realMode ? Math.pow(1 + p.inflation, r.projYears) : 1;
+  const acts = idx >= 0
+    ? '<span class="scen-acts"><button class="mini-btn" type="button" data-act="load" data-i="' + idx + '">Load</button>' +
+      '<button class="mini-btn" type="button" data-act="del" data-i="' + idx + '">Delete</button></span>'
+    : '<span class="scen-acts scen-live">live</span>';
+  return '<div class="scen-row">' +
+    '<span class="scen-name">' + esc(name) + '</span>' +
+    '<span>Keep ' + fmt(r.finalKeep / d) + '</span>' +
+    '<span>Sell ' + fmt(r.finalSell / d) + '</span>' +
+    '<span class="scen-win ' + (r.winner === 'Keep' ? 'num-pos' : 'num-neg') + '">' + r.winner +
+    ' · Y' + r.projYears + (p.realMode ? ' · today’s $' : '') + '</span>' +
+    acts + '</div>';
+}
+function renderScenarios() {
+  const arr = getScenarios();
+  let html = '';
+  if (LAST) html += scenRow('Current inputs', LAST.p, LAST.r, -1);
+  arr.forEach((sc, i) => {
+    const p = parseParams(sc.state);
+    html += scenRow(sc.name, p, compute(p), i);
+  });
+  if (arr.length === 0) html += '<p class="scen-hint">Save the current inputs to compare set-ups side by side.</p>';
+  $('scenList').innerHTML = html;
+}
+function saveScenario() {
+  const arr = getScenarios();
+  const name = $('scenName').value.trim() || ('Scenario ' + (arr.length + 1));
+  arr.push({ name: name, state: collectState() });
+  setScenarios(arr);
+  $('scenName').value = '';
+  renderScenarios();
+}
+$('scenSave').addEventListener('click', saveScenario);
+$('scenName').addEventListener('keydown', function(e) { if (e.key === 'Enter') saveScenario(); });
+$('scenList').addEventListener('click', function(e) {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const arr = getScenarios();
+  const i = parseInt(btn.dataset.i, 10);
+  if (!arr[i]) return;
+  if (btn.dataset.act === 'del') {
+    arr.splice(i, 1);
+    setScenarios(arr);
+    renderScenarios();
+  } else if (btn.dataset.act === 'load') {
+    applyState(arr[i].state);
+    syncPresetHighlight();
+    syncTermDisabled();
+    recalc();
+  }
+});
+
+// ---- CSV export of the displayed projection ----
+$('csvBtn').addEventListener('click', function() {
+  if (!LAST) return;
+  const p = LAST.p, r = LAST.r;
+  const defl = y => p.realMode ? Math.pow(1 + p.inflation, y) : 1;
+  const unit = p.realMode ? ' (today\'s $)' : '';
+  const head = ['Year', 'Property Value' + unit, 'Mortgage' + unit, 'Equity' + unit, 'Net Cashflow' + unit,
+    'Cumulative Cashflow' + unit, 'Keep Net Worth' + unit, 'Sell Net Worth' + unit, 'Difference' + unit];
+  const lines = [head.join(',')];
+  for (let i = 0; i < r.projYears; i++) {
+    const d = defl(i + 1);
+    lines.push([
+      r.years[i],
+      Math.round(r.propVals[i] / d),
+      Math.round(r.mortBals[i] / d),
+      Math.round((r.propVals[i] - r.mortBals[i]) / d),
+      Math.round(r.cashflows[i] / d),
+      Math.round(r.savedVals[i] / d),
+      Math.round(r.keepNWs[i] / d),
+      Math.round(r.sellNWs[i] / d),
+      Math.round((r.keepNWs[i] - r.sellNWs[i]) / d)
+    ].join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'nz-rental-keep-vs-sell.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+
+// Charts are created once and updated in place — destroying and recreating
+// them on every keystroke causes flicker and leaks canvas contexts.
+// Colors are the dataviz reference palette: categorical slots 1 (blue) and
+// 2 (aqua) for Keep/Sell identity; the diverging red pole for negative
+// cashflow; chart chrome in muted ink on the paper surface.
+let charts = null;
+const VIZ = {
+  keep: '#2a78d6',
+  sell: '#1baf7a',
+  loss: '#e34948',
+  surface: '#fcfcfb',
+  ink: '#0b0b0b',
+  ink2: '#52514e',
+  muted: '#898781',
+  grid: '#e1e0d9',
+  baseline: '#c3c2b7',
+  mono: "'IBM Plex Mono', ui-monospace, monospace",
+  sans: "'IBM Plex Sans', system-ui, sans-serif"
+};
+
+function initCharts() {
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      tooltip: {
+        backgroundColor: VIZ.ink,
+        titleColor: VIZ.baseline,
+        bodyColor: '#ffffff',
+        titleFont: { family: VIZ.mono, size: 10 },
+        bodyFont: { family: VIZ.mono, size: 11 },
+        padding: 10,
+        cornerRadius: 4,
+        boxWidth: 8,
+        boxHeight: 8,
+        boxPadding: 4,
+        callbacks: {
+          label: function(ctx) { return ctx.dataset.label + ': ' + fmt(ctx.parsed.y); }
+        }
+      },
+      legend: {
+        position: 'bottom',
+        labels: {
+          color: VIZ.ink2,
+          boxWidth: 10,
+          boxHeight: 10,
+          padding: 16,
+          font: { family: VIZ.sans, size: 11 },
+          usePointStyle: true,
+          pointStyle: 'rectRounded'
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        border: { color: VIZ.baseline },
+        ticks: { color: VIZ.muted, font: { family: VIZ.mono, size: 10 } }
+      },
+      y: {
+        grid: { color: VIZ.grid },
+        border: { display: false },
+        ticks: {
+          color: VIZ.muted,
+          font: { family: VIZ.mono, size: 10 },
+          callback: function(v) { return fmt(v); }
+        }
+      }
+    }
+  };
+
+  charts = {
+    nw: new Chart($('chartNW').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Keep Property',
+            data: [],
+            borderColor: VIZ.keep,
+            backgroundColor: 'rgba(42,120,214,0.10)',
+            fill: true,
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointBackgroundColor: VIZ.keep,
+            pointHoverBorderWidth: 2,
+            pointHoverBorderColor: VIZ.surface
+          },
+          {
+            label: 'Sell & Invest',
+            data: [],
+            borderColor: VIZ.sell,
+            backgroundColor: 'rgba(27,175,122,0.09)',
+            fill: true,
+            tension: 0.3,
+            borderWidth: 2,
+            borderDash: [6, 3],
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointBackgroundColor: VIZ.sell,
+            pointHoverBorderWidth: 2,
+            pointHoverBorderColor: VIZ.surface
+          }
+        ]
+      },
+      options: Object.assign({}, commonOptions, { interaction: { intersect: false, mode: 'index' } })
+    }),
+    cf: new Chart($('chartCF').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Keep Annual Cashflow',
+            data: [],
+            backgroundColor: [],
+            borderWidth: 0,
+            borderRadius: 4,
+            borderSkipped: 'start',
+            maxBarThickness: 18
+          },
+          {
+            label: 'Sell: Annual Investment Gain',
+            data: [],
+            backgroundColor: VIZ.sell,
+            borderWidth: 0,
+            borderRadius: 4,
+            borderSkipped: 'start',
+            maxBarThickness: 18
+          }
+        ]
+      },
+      options: commonOptions
+    })
+  };
+}
+
+function renderCharts(years, keepNWs, sellNWs, cashflows, annualOppGain) {
+  if (typeof Chart === 'undefined') return;
+  if (!charts) initCharts();
+
+  charts.nw.data.labels = years;
+  charts.nw.data.datasets[0].data = keepNWs;
+  charts.nw.data.datasets[1].data = sellNWs;
+  charts.nw.update('none');
+
+  charts.cf.data.labels = years;
+  charts.cf.data.datasets[0].data = cashflows;
+  charts.cf.data.datasets[0].backgroundColor = cashflows.map(v => v >= 0 ? VIZ.keep : VIZ.loss);
+  charts.cf.data.datasets[1].data = annualOppGain;
+  charts.cf.update('none');
+}
+
+function syncPresetHighlight() {
+  const rate = $('altReturn').value;
+  const tax = $('altTax').value;
+  let matched = null;
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.remove('active');
+    if (!b.classList.contains('custom') && b.dataset.rate === rate && b.dataset.tax === tax) matched = b;
+  });
+  (matched || document.querySelector('.preset-btn.custom')).classList.add('active');
+}
+
+$('presets').addEventListener('click', function(e) {
+  const btn = e.target.closest('.preset-btn');
+  if (!btn) return;
+
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (btn.classList.contains('custom')) return;
+
+  $('altReturn').value = btn.dataset.rate;
+  $('altTax').value = btn.dataset.tax;
+  recalc();
+});
+
+['altReturn', 'altTax'].forEach(id => {
+  $(id).addEventListener('input', syncPresetHighlight);
+});
+
+function syncTermDisabled() {
+  $('term').disabled = $('interestonly').checked;
+}
+$('interestonly').addEventListener('change', syncTermDisabled);
+
+$('shareBtn').addEventListener('click', function() {
+  const s = collectState();
+  const p = new URLSearchParams();
+  Object.keys(s).forEach(k => p.set(k, s[k]));
+  const url = location.href.split('?')[0].split('#')[0] + '?' + p.toString();
+  const btn = this;
+  const done = () => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy share link'; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done, () => { window.prompt('Copy this link:', url); });
+  } else {
+    window.prompt('Copy this link:', url);
+  }
+});
+
+document.querySelectorAll('.input-panel input[type="number"]').forEach(el => el.addEventListener('input', recalc));
+document.querySelectorAll('.input-panel select, .input-panel input[type="checkbox"]').forEach(el => el.addEventListener('change', recalc));
+
+loadState();
+syncPresetHighlight();
+syncTermDisabled();
+recalc();
+</script>
+</body>
+</html>
