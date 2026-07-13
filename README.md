@@ -7,7 +7,9 @@ A single-file, no-build calculator that compares both paths year by year.
 
 ## Use it
 
-Open `index.html` in any browser. No server, no build step. Chart.js and
+**Live: https://zastik.github.io/nzrentalcalculator/**
+
+Or open `index.html` in any browser. No server, no build step. Chart.js and
 Google Fonts load from CDN; everything else is inline.
 
 - Inputs persist locally and can be shared via **Copy share link** (everything
